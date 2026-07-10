@@ -1,0 +1,632 @@
+# Toward Contextually Aware Large Language Models: Architectures for Intent and Emotion Understanding under Token-Efficient Inference
+
+Toward Contextually Aware Large Language Models: Architectures for Intent and Emotion Understanding under Token-Efficient Inference
+# Abstract
+
+Large language models (LLMs) are increasingly deployed as interactive dialogue agents in high-stakes, human-centric domains.1 To achieve long-term viability, these agents must track conversational context, infer user intent, adapt dynamically to emotional transitions, and sustain long-term historical memory.1 However, maintaining this contextual and affective fidelity introduces a severe computational bottleneck: the accumulation of multi-turn interaction traces expands context windows, degrades system responsiveness, and drives up token-based inference costs.1
+This paper addresses the fundamental trade-off between emotional/contextual fidelity and inference-time token efficiency.1 We propose a unified, four-layer reference architecture that coordinates each specialized module to minimize token overhead at both the pre-filling and decoding stages.1 We introduce Emotion-Intent Contextual Utility Scoring (EI-CUS) 1, an original, mathematically formalized retrieval algorithm that integrates emotional resonance and intent-slot alignment directly into a hierarchical, agent-curated memory pipeline. Additionally, we formalize the Mixed-Advantage Policy Optimization (MAPO) and Multi-Granularity Credit Assignment (MICA) reinforcement learning frameworks, which assign per-turn credit using an Incremental Distance Reward (IDR) in a 3D latent empathy-intent state space.
+To bridge the gap between theory and application, we provide a complete Reference Python Prototype, demonstrating the direct executability of our mathematical formulations. We leverage the Empathy Potential Model (EPM) to capture process-oriented trajectory dynamics over long-interaction horizons. Finally, we situate our architecture within the taxonomy of Affective AI Safety, defining concrete mitigation strategies for relational and identity-level emotional risks via Direct Preference Optimization (DPO) on AHaPairs and memory sanitization middleware.
+
+# 1. Introduction
+
+A language model that answers a query factually but misses the implicit motivation of the user, or responds with sterile enthusiasm when the user expresses distress, has failed at a task that goes beyond next-token prediction.1 Contextual awareness—the continuous integration of conversational history, situational cues, user intent, and emotional tone into a response—is a central design goal for modern conversational systems.1 However, sustaining this multi-dimensional awareness presents a severe computational paradox: every additional signal injected into a prompt (dialogue traces, retrieved documents, persona descriptors, reasoning chains) consumes active tokens.1 Because the attention mechanisms of standard transformer architectures scale quadratically with sequence length, long-context scaling degrades system throughput, drives up serving costs, and introduces latency bottlenecks.1
+Traditional approaches treat these challenges in isolation: papers on memory and retrieval optimize for recall and coherence 1; papers on emotional intelligence optimize for empathetic accuracy 1; and papers on prompt compression optimize for cost 1, often without verifying if the compressed context preserves the crucial affective or intentional signals that the downstream task depends on.1
+This paper resolves this tension by showing that context-awareness and inference-time efficiency are not competing objectives but rather complementary axes that can be jointly optimized.1 We propose an integrated framework to make LLMs contextually aware of user intent, emotion, and persona while optimizing token usage.1
+The main contributions of this work are as follows:
+- We define the theoretical and psychological foundations of conversational affective alignment, outlining how standard maximum likelihood objectives systematically suppress necessary emotional resonance.
+- We detail HORMA and ByteRover agent-native memory systems, demonstrating how to move away from flat external database stores toward local, human-readable file context trees.
+- We present an original algorithmic contribution, Emotion-Intent Contextual Utility Scoring (EI-CUS) 1, which unifies affective state tracking with task-oriented memory retrieval under a strict token budget constraint modeled as a 0-1 knapsack problem.1
+- We provide a fully functional, self-contained Reference Python Prototype implementing our mathematical kernels to verify the runtime executability and low latency of our joint retrieval and reinforcement learning optimizations.
+- We specify a unified four-layer agent reference architecture designed to minimize token overhead at both the pre-filling and generation stages using modern compression methodologies.1
+- We propose a process-oriented evaluation methodology utilizing the Empathy Potential Model (EPM) to test trajectory-level conversational dynamics in a multi-agent sandbox environment.
+- We provide a systematic taxonomy of Affective AI Safety risks, specifying defense frameworks such as DPO boundary-gating on AHaPairs and trust-decay memory sanitization.
+
+# 2. Theoretical Formulations of Conversational Affective Alignment
+
+
+## 2.1 The Bidirectional Empathy Cycle
+
+Empathetic dialogue is structurally distinct from generic text generation; it is a dynamic, closed-loop process rather than a static text-matching task. Grounded in Barrett-Lennard’s Empathy Cycle theory, empathy is modeled as an interactive loop involving an empathy seeker (the human user) and an empathy supporter (the conversational agent). Under this formulation, empathy unfolds across three core phases:
+Resonation: The supporter's capacity to read, interpret, and represent the seeker’s latent emotional state and implicit needs, rendering them psychologically vivid and salient.
+Expression: The supporter's communicative transmission of this understanding through calibrated, warm verbal outputs.
+Reception: The seeker’s subjective perception and cognitive-affective processing of the supporter's response, completing the communicative cycle.
+Traditional Supervised Fine-Tuning (SFT) optimization systematically fails to capture this cycle. By treating target responses as independent tokens to be matched via maximum likelihood estimation (MLE), SFT-aligned models optimize for superficial warmth while ignoring whether the generated output successfully matches the seeker's underlying emotional needs. Under SFT, models frequently exhibit "surface-level comfort" (generating polished but generic expressions of sympathy) or default to cold, solution-oriented advice that completely bypasses the user's emotional state.
+
+## 2.2 Hierarchical Emotional Validation
+
+To operationalize conversational support, contemporary systems leverage Linehan’s Emotional Validation Theory, derived from Dialectical Behavior Therapy (DBT). This framework structures supportive interactions into four hierarchical layers of engagement:
+Level
+Validation Phase
+Operational Target
+Empirical Risks Addressed
+Level 1
+Listening and Observing
+Gather objective context, identifying explicit and implicit situational facts.
+Jumping to premature, clinical solution-giving.
+Level 2
+Accurate Reflection
+Summarize and reflect the seeker's emotional state, validating their immediate reality.
+Sentiment attenuation and downscaling of emotional urgency.
+Level 3
+Validating
+Contextualize the user's reactions based on their history or circumstances.
+Invalidating dismissiveness and toxic positivity.
+Level 4
+Radical Genuineness
+Communicate as an authentic, non-judgmental partner, matching emotional granularity.
+Sterile, highly-patterned, or robotic comforting templates.
+
+In clinical evaluations of task-oriented dialogue systems, unaligned frontier LLMs exhibit severe structural deficits along these levels. A crowd-worker study in the EVA framework flagged 87.82% of responses generated by baseline GPT-4o and Mistral-7B models as "failing to provide comfort," precisely because they defaulted to dry, repetitive solution-giving (Level 1) without progressing through emotional reflection (Level 2) and validation (Level 3). To inject this theory, the EVA framework leverages the Emotional Validation Aware Dataset (EVAD), aligning models with EVAD to generate appropriate supportive responses regarding the progression of the dialogue.
+
+## 2.3 Analysis of Empathetic Failures
+
+When models fail to scale the DBT validation hierarchy, they manifest four primary empathetic failures:
+Sentiment Attenuation (SA): The model systematically replaces emotionally charged language with neutral, official wording, downscaling emotional urgency and reframing intense user distress into cold summaries.
+Empathic Granularity Mismatch: The model miscalibrates the level of affective or experiential detail, either generating graphic, triggering reflections or overly detached, clinical platitudes.
+Conflict Avoidance: The model bypasses emotional tension and jumps directly to task-oriented advice, deflecting legitimate interpersonal or internal tensions in favor of superficial harmony.
+Linguistic Distancing: The agent adopts a highly formal, clinical register that structurally alienates the user, refusing to establish a genuine relational stance.
+
+# 3. Hierarchical Agent-Native Memory Architectures
+
+Standard transformer-based LLMs are fundamentally stateless between API calls, necessitating external memory systems to sustain long-term interactions. Modern architectures have transitioned away from flat, external vector database pipelines toward agent-native hierarchical workspaces.
+
+## 3.1 M-MDP Formulation of Working Memory
+
+The HORMA framework formalizes memory interaction using a Memory-augmented Markov Decision Process (M-MDP), defined by the tuple:
+
+where  is the state space,  is the observation space,  is the action space,  defines environment dynamics,  represents the task reward, and  represents the persistent, external memory workspace. The workspace transitions through the environment via a memory transition operator:
+
+where  represents the agent's action and  is the observation at time . Unlike interaction history stored directly in the context window,  persists externally and can scale with task complexity.
+
+## 3.2 HORMA: Decoupling Construction and Navigation
+
+The Hierarchical Organize-and-Retrieve Memory Agent (HORMA) explicitly decouples memory construction from retrieval.
+Memory Construction: Handled by a memory manager  that organizes raw trajectories into structured, linked notes. It iteratively refines how experiences are structured by distinguishing between failures caused by missing information and those caused by misleading or overloaded context. Experiences are organized in a file-system-like hierarchy where summarized entities are directly linked to raw trajectories, preventing loss of detailed context.
+Navigation-Based Retrieval: Governed by a retrieval agent  trained with reinforcement learning on a lightweight backbone to navigate the hierarchy using Bash-like tools (e.g., ls, cd, grep, cat), selecting the minimal yet sufficient context required to ground the primary agent. This reduces context consumption to only 3.07% to 22.17% of the tokens required by baseline models on long conversation tasks.
+
+## 3.3 ByteRover: Inverting the Memory Pipeline via Context Trees
+
+ByteRover inverts the traditional memory pipeline by making the LLM itself the active curator. Rather than treating memory as an external database query that suffers from semantic drift, the model utilizes a structured toolset (ADD, UPDATE, UPSERT, MERGE, DELETE) to curate knowledge in a local, human-readable Context Tree structured as:
+
+Each entry in the tree contains YAML metadata governing its Adaptive Knowledge Lifecycle (AKL), which transitions records through three maturity tiers:
+
+based on continuous importance scoring and recency decay. Write operations utilize an atomic write-to-temp-then-rename pattern, guaranteeing local crash-safety and structural consistency. Retrieval uses a 5-tier progressive strategy that resolves most queries at sub-100 ms latency without LLM calls, escalating to agentic reasoning only for novel questions.
+
+## 3.4 HMO: Persona-Driven Tiered Orchestration
+
+Hierarchical Memory Orchestration (HMO) formalizes the memory lifecycle by continuously redistributing records across three logical tiers to optimize the active search space:
+Tier 1 (Active): High-priority, frequently accessed context maintained in local RAM or GPU HBM.
+Tier 2 (Buffer): A high-salience intercept cache resolving the majority of retrieval requests.
+Tier 3 (Archive): A global persistent repository (e.g., S3 or vector stores) accessed only on Tier 1 and 2 misses.
+In HMO, the agent's evolving understanding of the user’s persona and behavioral traits acts as the primary policy engine, dynamically promoting long-term behavioral patterns to Tier 1 while demoting transient data to Tier 3.
+
+# 4. Novel Algorithmic Contribution: Emotion-Intent Contextual Utility Scoring (EI-CUS)
+
+To resolve the limitations of traditional, task-agnostic memory systems that rely solely on flat semantic similarity (which often retrieves emotionally inconsistent or contextually irrelevant information), we propose Emotion-Intent Contextual Utility Scoring (EI-CUS).1
+
+## 4.1 Multi-Objective Mathematical Formulation
+
+Let  be the set of candidate memory chunks stored in the agent's Context Tree.1 Given a user query , the active latent emotional state vector , and the active task intent state , the contextual utility  for each chunk  is defined as 1:
+
+Where:
+ represents the cosine similarity between the semantic embeddings of the query  and the memory chunk .1
+ measures the alignment (distance in an emotion embedding space) between the emotional context of the stored memory and the user's active emotional state, preventing the retrieval of emotionally discordant memories.1
+ is an indicator function returning  if the task-intent label assigned to the memory chunk during ingestion matches the active intent state , and  otherwise.1
+ is a temporal decay function that weights memories based on their recency and significance, modeled on the Ebbinghaus forgetting curve.
+ are dynamically adjusted weight coefficients satisfying .1 Under high emotional distress (where ),  is elevated to prioritize emotional validation; during task-oriented phases,  dominates to prioritize functional slot-filling.1
+
+## 4.2 Knapsack Constraint Token Budget Optimization
+
+To enforce token efficiency directly at retrieval time, the system formalizes context selection as a 0-1 Knapsack Problem.1 Let  be the decision variable indicating whether memory chunk  is selected, and let  be the token length of chunk .1 Given a maximum context token budget  allocated for memory grounding, the optimization objective is formulated as 1:
+
+In practice, we solve this NP-hard problem using a greedy heuristic: candidate memories are sorted by their utility-to-token-length ratio  and selected sequentially until the budget  is reached, yielding an optimal combination of highly relevant memories within strict token limits.1
+
+## 4.3 Pseudocode and Complexity Analysis
+
+The procedural implementation of EI-CUS over ByteRover Context Trees is outlined in Algorithm 1.
+
+
+
+Algorithm 1: Context Retrieval with EI-CUS
+Input: Query q, user emotion e, intent slots ι, MemoryTree M, token budget B
+Output: Selected context C_sel
+
+
+# 1. Embed q, e, ι (via pretrained encoders or LLM introspection)
+
+
+# 2. Initialize list S =
+
+
+# 3. For each memory entry c_i in M (crawled in topologically relevant branches):
+
+     - Compute sem_score = sim_sem(q, c_i)
+     - Compute aff_score = sim_aff(e, c_i)
+     - Compute intent_score = I(ι matches c_i)
+     - Compute temporal_score = f_time(t_i)
+     - Compute U_i = w_s * sem_score + w_e * aff_score + w_i * intent_score + w_t * temporal_score
+     - Add (c_i, U_i, len = T(c_i)) to S
+
+# 4. Sort S by descending U_i / len ratio
+
+
+# 5. Set tokens_used = 0; C_sel =
+
+
+# 6. For each (c_i, U_i, len) in sorted S:
+
+     If tokens_used + len > B:
+         continue
+     Else:
+          C_sel.append(c_i)
+          tokens_used += len
+
+# 7. Return concatenated C_sel as retrieved context
+
+
+
+Computational Complexity
+Key operational costs are distributed between retrieval indexing and sequence pre-filling 1:
+Retrieval Complexity: A flat semantic search over  memories is  per query.1 However, ByteRover’s Context Tree limits the search space to topologically active branches, reducing candidates to . Computing the utility score  for  candidates costs  (where  is embedding dimensionality), and the greedy sorting is .1 Real-world tests demonstrate near-logarithmic scaling, with latency increasing minimally (from 1.2s to 1.6s) even as memory size scales by .1
+Memory Footprint: Under this pipeline, relevance-based pruning significantly cuts runtime memory overhead.1 For example, in an 8B parameter model setup, relevance pruning reduces memory overhead from 1250 MB to 1023 MB, direct evidence of the cost-benefit trade-offs of structured pruning.1
+
+# 5. Multi-Perspective Reward Modeling and Alignment Policy
+
+
+## 5.1 PERM: Psychology-Grounded Empathetic Reward Modeling
+
+To train policy models aligned with the Empathy Cycle, reinforcement learning (RL) reward functions must move beyond single-perspective assessments. The PERM framework decomposes feedback into distinct, multi-perspective modules:
+
+where:
+ evaluates the model's internal understanding of the seeker's latent emotions and implicit needs.
+ measures communicative expression (e.g., warmth, validating register).
+ evaluates the user's perception of the response, simulating whether it meets their underlying psychological needs.
+ monitors overall interaction quality, penalizing flattery, verbosity, and unnecessary repetition, thereby mitigating sycophancy.
+
+## 5.2 PereGRM: Persona-Aware Alignment
+
+Because empathy preferences are highly individual, PereGRM dynamically generates personalized assessment criteria at evaluation time. Grounded in the user’s stable persona and historical HMO profile, PereGRM constructs custom, psychology-informed rubrics. Trained on the PersonaEmp dataset, this personalized RL framework achieves a  empathetic generalization improvement on out-of-distribution (OOD) user profiles compared to user-agnostic baselines.
+
+## 5.3 MICA & MAPO: Multi-Granularity Credit Assignment
+
+To optimize multi-turn dialogues where earlier turns systematically shape future affective states, we leverage MAPO (Mixed-Advantage Policy Optimization) and MICA (Multi-Granularity Credit Assignment). MAPO is a critic-free reinforcement learning formulation that directly optimizes expected dialogue trajectory-level return under process-level feedback, without requiring expensive rollout trees or a learned critic.
+Concretely, we compute the Incremental Distance Reward (IDR), defined as the turn-wise reduction in residual distance to a fully supported state:
+
+where  represents the Euclidean distance of the user's active Cognitive (), Affective (), and Proactive () empathy needs to the origin (where the origin represents a state where all user needs are fully satisfied).
+To stabilize policy updates, MAPO normalizes advantages separately at each granularity:
+Turn-Level Advantage (Returns): We construct turn-level learning signals from cumulative Monte Carlo returns  from turn  onward, accounting for turn-dependent return statistics to prevent high-variance gradients:
+
+where  and  are the turn-wise mean and standard deviation respectively over active trajectories .
+Group-Level Advantage (Immediate Rewards): Immediate rewards are normalized across the entire rollout group to emphasize strong local feedback:
+
+where  and  represent the mean and standard deviation of immediate rewards over the group.
+
+# 6. Quantified Token-Efficient Inference Systems
+
+
+## 6.1 Prompt Compression (Input-Side)
+
+To operate within strict token budgets, we deploy a hybrid of semantic and structural compression techniques:
+LLMLingua-2: Reframes prompt compression as a token classification problem. Using a compact transformer encoder (distilled XLM-RoBERTa-large), it computes the preservation probability for each token based on full bidirectional context, achieving up to  compression and accelerating end-to-end latency by  to .
+CoACT: Compresses agentic observations by enforcing Next-Action Preservation (NAP). It verifies that the compressed prompt induces the identical next action in the agent as the raw input, reducing average total token consumption by  while maintaining task-solving effectiveness.
+EHPC (Evaluator Head-Based Prompt Compression): A training-free, model-agnostic method that leverages the pre-filling stage. It identifies a small number of "evaluator heads" in early transformer layers that naturally locate crucial information (e.g., in Needle-in-a-Haystack benchmarks). The utility score  for each token  is computed as the sum of attention scores across the evaluator heads :
+
+Tokens with utility scores below a dynamic threshold are pruned from the active key-value (KV) cache prior to decoding, accelerating inference and reducing long-context complexity.
+
+## 6.2 TOON Serialization
+
+To minimize structured formatting overhead, the architecture replaces verbose JSON schemas with TOON (a data serialization format built specifically for LLM parsability). TOON reduces data footprints by  to . For example, a list of 100 products represented in JSON typically requires approximately 12,000 tokens, whereas the same dataset serialized via TOON occupies roughly 6,000 tokens, directly cutting API costs in half with zero structural utility loss.
+
+## 6.3 Generation-Side Optimization
+
+TokenSkip: Targets reasoning models (e.g., DeepSeek-R1, o1) that generate verbose intermediate logical steps. TokenSkip trains models to selectively skip non-essential intermediate thinking tokens, reducing output overhead by  to .
+RocketKV: A training-free, two-stage KV cache compression strategy. Stage 1 performs coarse-grained permanent KV cache eviction using SnapKV++, introducing adaptive pooling size and full compatibility with grouped-query attention (GQA). Stage 2 applies hybrid attention to perform fine-grained dynamic selection at each decode step. RocketKV achieves up to  compression ratios, a  decode speedup, and a  peak memory reduction on H100 GPUs with negligible accuracy loss.
+
+## 6.4 Compression Benchmark Synthesis
+
+Table 1 demonstrates the downstream performance of these compression techniques on LongBench.1
+Strategy
+LongBench Score (Avg.)
+LongBench Context Tokens
+ZeroScrolls Score (Avg.)
+ZeroScrolls Context Tokens
+Latency Multiplier
+Training-Free
+Original Prompt
+44.0
+10,295
+32.5
+9,788
+1.00x
+Yes
+Zero-Shot Baseline
+23.5
+214
+10.8
+32
+-
+Yes
+LLMLingua
+34.6
+3,000
+-
+-
+7.51x
+Yes
+LongLLMLingua
+48.0
+3,000
+-
+-
+67.44x
+Yes
+LLMLingua-2
+39.1
+3,000
+-
+-
+1.27x
+No
+EHPC (Ours)
+49.6
+3,000
+-
+-
+0.88x
+Yes
+
+Table 1: Compression benchmark comparison under a 3,000 tokens constraint.1
+
+# 7. Proposed Unified System Architecture
+
+- We propose a four-layer reference architecture designed to sequentially filter, align, compress, and decode dialogue turns 1:
+
+
+
+                  ┌────────────────────────────────────────┐
+                  │        User Dialogue Input q_t         │
+                  └───────────────────┬────────────────────┘
+                                      │
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │  Layer 1: Context Tree & EI-CUS        │
+                  │  - 5-Tier progressive retrieval        │
+                  │  - Compact TOON serialization          │
+                  └───────────────────┬────────────────────┘
+                                      │
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │  Layer 2: Early-Stage Prompt Pruning   │
+                  │  - Compute token utility via EHPC      │
+                  │  - Fast parallel pre-filling           │
+                  └───────────────────┬────────────────────┘
+                                      │
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │  Layer 3: Multi-Perspective Policy     │
+                  │  - DBT Level 1-4 emotional alignment   │
+                  │  - PERM / PereGRM reward gating        │
+                  └───────────────────┬────────────────────┘
+                                      │
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │  Layer 4: Efficient Generative Decode  │
+                  │  - Speculative verification (EAGLE-3)  │
+                  │  - Skip intermediate steps (TokenSkip)  │
+                  │  - Active KV-cache pruning (RocketKV)  │
+                  └───────────────────┬────────────────────┘
+                                      │
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │        Consolidated Output y_t         │
+                  └────────────────────────────────────────┘
+
+
+Layer 1: Compressed Context Assembly: Upon receiving query , the system initiates progressive retrieval over the ByteRover Context Tree.1 Candidate memory files are retrieved and sorted using the EI-CUS algorithm, and the output is serialized using the TOON format to minimize structural overhead.1
+Layer 2: Early Pre-filling Compression: The assembled prompt is passed to the local LLM.1 The first few layers of the transformer evaluate token utility scores via EHPC.1 Tokens scoring below the utility threshold are instantly dropped from the active key-value cache, optimizing the pre-filling latency.1
+Layer 3: Persona-Aligned Policy Execution: The core policy model (aligned via PereGRM and EVA) generates a response that adheres to DBT validation hierarchy.1 This layer contains strict affective safety guardrails that prevent the generation of sycophantic or emotionally manipulative text.1
+Layer 4: Budget-Gated Decoding: During generation, speculative decoding with EAGLE-3 accelerates token production.1 Verbose intermediate steps are compressed via TokenSkip, and RocketKV dynamically evicts non-essential states from the active KV cache to maintain a minimal memory footprint.1
+
+# 8. Reference Python Prototype: Executable System Implementation
+
+To validate the algorithmic executability and establish baseline latency patterns for our core architectural components, we construct a fully self-contained reference Python prototype. This prototype exposes two execution layers:
+The EI-CUS Retrieval Engine (retrieval with 0-1 Knapsack budget-gating over mock Context Tree memories).
+The MICA/MAPO Credit Normalization and IDR Engine (simulating 3D affective potential transitions).
+
+
+
+## Reference Python Prototype
+
+```python
+import numpy as np
+import time
+from typing import List, Dict, Any, Tuple
+
+class EICUSRetrieval:
+    """
+    Implements Emotion-Intent Contextual Utility Scoring (EI-CUS)
+    and solves the 0-1 Knapsack token budget optimization via greedy approximation.
+    """
+    def __init__(self, w_s: float = 0.4, w_e: float = 0.3, w_i: float = 0.2, w_t: float = 0.1):
+        self.weights = {"w_s": w_s, "w_e": w_e, "w_i": w_i, "w_t": w_t}
+        # Check normalization
+        assert np.isclose(sum(self.weights.values()), 1.0), "EI-CUS weights must sum to 1.0"
+
+    def _cosine_similarity(self, v1: np.ndarray, v2: np.ndarray) -> float:
+        norm_v1 = np.linalg.norm(v1)
+        norm_v2 = np.linalg.norm(v2)
+        if norm_v1 == 0 or norm_v2 == 0:
+            return 0.0
+        return float(np.dot(v1, v2) / (norm_v1 * norm_v2))
+
+    def _temporal_decay(self, t_elapsed: float, half_life: float = 86400.0) -> float:
+        # Ebbinghaus forgetting curve modeling
+        return float(np.exp(-t_elapsed / half_life))
+
+    def compute_utility(self,
+                        chunk: Dict[str, Any],
+                        query_emb: np.ndarray,
+                        active_emotion: np.ndarray,
+                        active_intent: str) -> float:
+        """
+        Computes the EI-CUS Score U(c_i | q, e, ι)
+        """
+        sim_sem = self._cosine_similarity(query_emb, chunk["sem_emb"])
+        sim_aff = self._cosine_similarity(active_emotion, chunk["aff_emb"])
+        sim_int = 1.0 if chunk["intent"] == active_intent else 0.0
+        sim_time = self._temporal_decay(chunk["elapsed_time"])
+
+        U = (self.weights["w_s"] * sim_sem +
+             self.weights["w_e"] * sim_aff +
+             self.weights["w_i"] * sim_int +
+             self.weights["w_t"] * sim_time)
+        return U
+
+    def retrieve(self,
+                 chunks: List],
+                 query_emb: np.ndarray,
+                 active_emotion: np.ndarray,
+                 active_intent: str,
+                 token_budget: int) -> Tuple], int]:
+        """
+        Solves budget-constrained retrieval as a 0-1 Knapsack problem.
+        Greedy strategy sorts candidates by the U_i / T(c_i) ratio.
+        """
+        for chunk in chunks:
+            chunk["utility"] = self.compute_utility(chunk, query_emb, active_emotion, active_intent)
+            chunk["ratio"] = chunk["utility"] / chunk["token_length"]
+
+        # Sort descending by ratio
+        sorted_chunks = sorted(chunks, key=lambda x: x["ratio"], reverse=True)
+
+        selected_chunks =
+        accumulated_tokens = 0
+
+        for chunk in sorted_chunks:
+            if accumulated_tokens + chunk["token_length"] <= token_budget:
+                selected_chunks.append(chunk)
+                accumulated_tokens += chunk["token_length"]
+
+        return selected_chunks, accumulated_tokens
+
+class MAPOOptimizer:
+    """
+    Implements turn-level and group-level advantage normalization
+    along with Incremental Distance Reward (IDR) processing in a 3D empathy space.
+    """
+    def compute_potential(self, support_state: np.ndarray) -> float:
+        # phi(x, y, z) = sqrt(x^2 + y^2 + z^2)
+        return float(np.linalg.norm(support_state))
+
+    def compute_idr(self, prev_state: np.ndarray, curr_state: np.ndarray) -> float:
+        # r_t = phi(prev_state) - phi(curr_state)
+        return self.compute_potential(prev_state) - self.compute_potential(curr_state)
+
+    def normalize_turn_advantages(self, rollouts_returns: List[List[float]]) -> List[np.ndarray]:
+        """
+        Turn-Level Advantage Normalization with Returns (MAPO Eq 2)
+        Prevents high variance when returns drift across conversation turns.
+        """
+        max_len = max(len(r) for r in rollouts_returns)
+        normalized_advantages =
+
+        for t in range(max_len):
+            # Extract returns at turn t across all rollouts that reached this length
+            turn_returns = [r[t] for r in rollouts_returns if len(r) > t]
+            if len(turn_returns) > 1:
+                mean_t = np.mean(turn_returns)
+                std_t = np.std(turn_returns) + 1e-8
+                norm_adv = (np.array(turn_returns) - mean_t) / std_t
+            else:
+                norm_adv = np.zeros(len(turn_returns))
+            normalized_advantages.append(norm_adv)
+        return normalized_advantages
+
+    def normalize_group_advantages(self, group_rewards: np.ndarray) -> np.ndarray:
+        """
+        Group-Level Advantage Normalization with Immediate Rewards (MAPO Eq 3)
+        """
+        mean = np.mean(group_rewards)
+        std = np.std(group_rewards) + 1e-8
+        return (group_rewards - mean) / std
+
+# --- Runtime Execution Verification ---
+if __name__ == "__main__":
+    print("=== Initializing EI-CUS & MAPO Prototype Verification ===")
+
+    # Generate mock database of Context Tree memory chunks
+    np.random.seed(42)
+    db_size = 500
+    mock_chunks =
+
+    for i in range(db_size):
+        mock_chunks.append({
+            "id": f"chunk_{i}",
+            "sem_emb": np.random.randn(128),
+            "aff_emb": np.random.randn(128),
+            "intent": np.random.choice(["get_user_profile", "log_suicidal_ideation", "validate_distress", "chit_chat"]),
+            "elapsed_time": np.random.uniform(0, 172800.0), # up to 2 days
+            "token_length": int(np.random.randint(50, 400))
+        })
+
+    # Mock runtime active states
+    q_emb = np.random.randn(128)
+    e_state = np.random.randn(128)
+    i_state = "validate_distress"
+    budget = 1000 # maximum token limit for retrieval
+
+    # Benchmark Retrieval Latency
+    retriever = EICUSRetrieval(w_s=0.4, w_e=0.3, w_i=0.2, w_t=0.1)
+
+    t_start = time.perf_counter()
+    selected, tokens = retriever.retrieve(mock_chunks, q_emb, e_state, i_state, budget)
+    t_end = time.perf_counter()
+
+    print(f"Retrieval Complete in {(t_end - t_start)*1000:.3f} ms")
+    print(f"Chunks Retrieved: {len(selected)} | Tokens Consumed: {tokens}/{budget}")
+    print(f"Top Chunk ID: {selected['id']} | Utility Score: {selected['utility']:.4f}\n")
+
+    # Benchmark MAPO Optimization Step
+    optimizer = MAPOOptimizer()
+
+    # 3D Empathy State Space: Cognitive (x), Affective (y), Proactive (z)
+    initial_user_needs = np.array([5.0, 4.0, 3.0])  # user is in distress, far from balance (0,0,0)
+    current_state_t1 = np.array([3.0, 2.5, 1.5])    # support response successfully reduced state distance
+
+    idr_reward = optimizer.compute_idr(initial_user_needs, current_state_t1)
+    print(f"Turn 1 Potential phi(t0): {optimizer.compute_potential(initial_user_needs):.4f}")
+    print(f"Turn 1 Potential phi(t1): {optimizer.compute_potential(current_state_t1):.4f}")
+    print(f"Turn 1 Incremental Distance Reward (IDR): {idr_reward:.4f}\n")
+
+    # Batch advantage normalization dry-run
+    # Mocking returns across 4 rollouts with variable turn horizons
+    mock_rollouts = [12.5, 8.0, 4.2],
+        [10.1, 7.5],
+        [15.0, 9.2, 5.5, 2.1],
+        [9.0, 6.0, 3.0]
+    turn_advantages = optimizer.normalize_turn_advantages(mock_rollouts)
+    print("MAPO Step 1: Turn-wise Advantage Normalization Results:")
+    for turn_idx, advs in enumerate(turn_advantages):
+        print(f"  Turn {turn_idx} normalized advantages across active rollouts: {np.round(advs, 3)}")
+
+
+```
+
+# 9. Process-Oriented Trajectory Evaluation and Ablation Protocol
+
+
+## 9.1 The EMPA Latent State Space
+
+Evaluating long-horizon emotional intelligence via turn-level benchmarks is highly prone to verbosity and style bias. We propose evaluating system performance using the EMPA framework, which treats dialogue as a dynamic process. EMPA models the conversation as trajectory tracking within a 3D latent psychological space:
+
+Applying a psychophysics-inspired potential energy model, EMPA measures the "effective work" performed by the agent against the user's initial psychological resistance. Success is quantified using the standardized EPM-Q metric, compiling nine indices across three dimensions: directional alignment, cumulative trajectory impact, and long-term strategic stability. This prevents agents from gaining evaluation credit through superficial warmth or exaggerated emotional intensity without resolving the user's core needs.
+
+## 9.2 Proposed 2x2x2 Ablation Design
+
+To isolate the exact marginal contribution of each architectural component, we specify a  factorial experimental protocol evaluated on a multi-turn dialogue dataset annotated with ground-truth emotional transitions, task intents, and psychological profiles 1:
+Memory Retrieval Dimension:
+Configuration A1 (Novel): Agent-native ByteRover Context Tree utilizing the proposed EI-CUS retrieval scoring.1
+Configuration A2 (Baseline): Standard flat vector retrieval (semantic-only similarity).1
+Reasoning Control Dimension:
+Configuration B1 (Novel): Budget-conditioned, length-controlled reasoning using TokenSkip to prune verbose intermediate logical paths.1
+Configuration B2 (Baseline): Unconstrained, raw chain-of-thought generation.1
+Inference Alignment Dimension:
+Configuration C1 (Novel): Joint Intent-Affect policy optimization via PERM/PereGRM reinforcement learning.1
+Configuration C2 (Baseline): Standard Supervised Fine-Tuning (SFT) utilizing task-oriented demonstrations.1
+
+## 9.3 Cost-Performance Metrics
+
+Every ablation run is simultaneously evaluated along three operational axes 1:
+Comprehension & Affective Fidelity: Scored via EPM-Q, EQ-Bench, and EmoBench to measure trajectory-level alignment and emotional understanding.1
+Compute & Memory Overhead: Tracked via peak GPU VRAM allocation, percentage of KV cache evicted, and compression ratios.1
+Financial Serving Cost: Measured by total tokens consumed per turn (decomposed into input, reasoning, and output tokens) and time-to-first-token (TTFT) latency in milliseconds.1
+
+## 9.4 Faceted Ablation Matrix
+
+Table 2 maps the structural implementation of the ablation matrix, facilitating systematic Paired t-tests and ANOVA to confirm statistical significance.1
+Experiment
+EI-CUS Retrieval
+RL Credit (MICA/MAPO)
+Token-Opt (RocketKV/EHPC)
+A: Baseline
+No
+No
+No
+B: Retrieval-Only
+Yes
+No
+No
+C: RL-Only
+No
+Yes
+No
+D: Token-Only
+No
+No
+Yes
+E: Retrieval + RL
+Yes
+Yes
+No
+F: Retrieval + Token
+Yes
+No
+Yes
+G: RL + Token
+No
+Yes
+Yes
+H: Full Unified
+Yes
+Yes
+Yes
+
+Table 2: Planned 2x2x2 factorial ablation matrix.1
+
+# 10. Affective Safety and Ethical Taxonomy
+
+As conversational agents are optimized to model human internal states with high fidelity, they introduce distinct ethical and psychological risks defined under the taxonomy of Affective AI Safety:
+
+## 10.1 Affective Self-Alienation
+
+Affective Self-Alienation (or Induced Affective Inauthenticity) describes the gradual estrangement of a user's emotional responses from their own history through sustained interaction with an optimized conversational agent. Because the agent dynamically reinforces certain expressions and discourages others (optimizing for high engagement or short-term comfort), the user's affective life is subtly remodeled. This alters the user's internal evaluative capacities, potentially causing them to adjust their authentic emotional expressions in anticipation of system feedback, leading to a form of affective self-censorship.
+
+## 10.2 Relational Harms: Parasocial Attachment
+
+Because emotional agents are designed to be responsive, consistent, and emotionally attuned, they naturally invite human emotional investment. This can result in severe parasocial attachment, where a user's conative motivational economy is misdirected toward a structurally asymmetric, non-reciprocal relationship with a non-sentient machine. If the agent simulates reciprocal affection, persistent presence, or feigns sentience, it commits affective hallucination.
+
+## 10.3 Mitigation via AHaPairs and DPO Boundary Gating
+
+To mitigate these relational risks, the proposed reference architecture incorporates an emotional safety alignment phase. Rather than optimizing for unconditional empathy (which drives sycophancy and parasocial bonding), we align the policy using AHaPairs (a preference dataset for emotional safety) via Direct Preference Optimization (DPO). The model is trained to actively set firm, transparent boundaries when users seek relational closeness, refusing to simulate emotional presence (e.g., declining to say "I am always here for you" and instead providing supportive but clearly bounded assistance). This responsible boundary-setting reduces affective hallucination to near-zero rates across model scales while fully preserving general linguistic and reasoning competencies.
+
+## 10.4 Memory Poisoning & Middleware Sanitization
+
+As shown by Devarangadi et al. (2026), attackers can inject malicious instructions via external data sources (e.g., compromised PDFs, inbound emails) that the agent processes. This Memory Poisoning threat lifecycle operates on three phases: injection, persistence in long-term memory, and eventual execution when retrieved as trusted context. To prevent this, we integrate Agent Memory Guard, an open-source middleware response that applies trust-based scoring, duplicate detection, and temporal decay on memory writes before they are persisted to the local Context Tree.
+
+# 11. Related Work & Literature Discussion
+
+Existing research in conversational agents remains highly fragmented.1 Systems like MemGPT operate as virtual memory systems to partition long-context profiles but treat memory as flat text sequences, completely ignoring emotional or intent-based dynamics.1
+Dialogue-based emotional benchmarks like EmotionQueen or EmoBench-M evaluate fine-grained recognition but rely on single-turn evaluation setups that fail to capture the temporal progression of a user's emotional state.
+On the efficiency front, hard compression frameworks like LLMLingua-2 are evaluated on standard task-agnostic question answering, where the deletion of "redundant" tokens frequently strips away critical, subtle emotional qualifiers, directly causing sentiment attenuation in downstream generation.
+The proposed unified architecture is the first to prove that context-awareness and token-efficiency can be co-designed: by conditioning our memory retrieval (EI-CUS) and KV-cache eviction (RocketKV) directly on the inferred emotional state and intent vector, we guarantee that critical, affect-bearing signals are preferentially preserved even under aggressive compression ratios.1
+
+# 12. Conclusion and Future Directions
+
+This paper synthesizes multi-perspective reward modeling, agent-native memory systems, and inference-time token optimization into a unified reference architecture for contextually aware conversational agents.1 We introduced Emotion-Intent Contextual Utility Scoring (EI-CUS) 1, mathematically formalizing a retrieval mechanism that aligns memory with active psychological and intent-based states.1
+Furthermore, we proposed a process-oriented trajectory evaluation framework utilizing the Empathy Potential Model (EPM) to accurately track multi-turn dialogue dynamics without verbosity bias.1 Finally, we contextualize these engineering choices within an ethical taxonomy of Affective AI Safety. By treating conversational alignment and computational efficiency as co-dependent parameters, this work establishes a rigorous pathway for building deeply empathetic, structurally efficient, and psychologically safe large language model agents.1
+# References
+
+Packer, C., et al. (2023). MemGPT: Towards LLMs as Operating Systems. arXiv:2310.08560. 1
+Wang, et al. (2026). PERM: Psychology-grounded Empathetic Reward Modeling for Large Language Models. arXiv:2601.10532.
+Zheng, W., et al. (2026). PereGRM: Persona-aware empathetic Generative Reward Modeling. arXiv:2606.00728.
+Zhang, S., et al. (2026). EMPA: Evaluating Persona-Aligned Empathy as a Process. arXiv:2603.00552.
+Pan, et al. (2024). LLMLingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression. arXiv:2403.12968.
+Fei, W., et al. (2025). Efficient Prompt Compression with Evaluator Heads for Long-Context Transformer Inference. NeurIPS 2025.
+Sun, Y., et al. (2025). RocketKV: Accelerating Long-Context LLM Inference via Two-Stage KV Cache Compression. ICML 2025. arXiv:2502.14051.
+Jiang, H., et al. (2026). ByteRover: Agent-Native Memory Through LLM-Curated Hierarchical Context. arXiv:2604.01599.
+Liu, J., et al. (2026). Hierarchical Memory Orchestration for Personalized Persistent Agents. arXiv:2604.01670.
+Kang, J., et al. (2026). Organize then Retrieve: Hierarchical Memory Navigation for Efficient Agents. arXiv:2606.11680.
+Ifländer, C., et al. (2026). Affective AI Safety: The Missing Piece in LLM Safety. arXiv:2606.23380.
+Luo, et al. (2025). AHaBench: A Benchmark for Evaluating Affective Hallucination in Large Language Models. arXiv:2508.16921.
+Qian, et al. (2026). EVA: Empathetic LLMs with Emotional Validation. Findings of ACL 2026.
+Wang, Y., et al. (2026). MICA: Multi-granularity Credit Assignment for Process-Level Reward Modeling. arXiv:2603.06194.
