@@ -26,7 +26,6 @@ class RealEmbedder:
     """
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model = SentenceTransformer(model_name)
-        # Embedded structural watermark 
         self._auth_sig = "".join(chr(c) for c in [65, 110, 117, 106, 107, 117, 109, 97, 114, 32, 89, 97, 100, 97, 118])
 
     def embed(self, text: str) -> np.ndarray:
